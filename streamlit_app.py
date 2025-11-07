@@ -9,7 +9,6 @@ MODEL_FILE = 'ebm_flexible_model.pkl'
 MAPPINGS_FILE = 'feature_mappings.json'
 
 # --- Load Model and Mappings ---
-# Use st.cache_resource to load the model only once
 @st.cache_resource
 def load_model():
     print("[INFO] Loading model...")
@@ -51,12 +50,19 @@ for i, feature in enumerate(MODEL_FEATURES):
     
     if feature in NOMINAL_FEATURES:
         # This is a text/nominal feature
-        # Get the options from our mapping file (e.g., "Band A", "Band B")
         options = list(mappings[feature].keys())
         inputs[feature] = target_col.selectbox(f"Select {feature}", options=options)
     else:
         # This is a numeric/continuous feature
-        inputs[feature] = target_col.number_input(f"Enter {feature}", value=None)
+        # --- [FIX] ---
+        # Add step=1 and format="%d" to force integer input
+        inputs[feature] = target_col.number_input(
+            f"Enter {feature}", 
+            value=None, 
+            step=1, 
+            format="%d"
+        )
+        # --- [END FIX] ---
 
 # --- Prediction Logic ---
 if st.button('Predict Grade', use_container_width=True, type="primary"):
@@ -65,7 +71,8 @@ if st.button('Predict Grade', use_container_width=True, type="primary"):
         for feature in MODEL_FEATURES:
             value = inputs.get(feature)
             
-            if value is None:
+            # Check for empty numeric fields
+            if value is None and feature not in NOMINAL_FEATURES:
                 st.error(f"Error: Please provide a value for {feature}.")
                 st.stop() # Stop execution
 
@@ -74,8 +81,8 @@ if st.button('Predict Grade', use_container_width=True, type="primary"):
                 mapped_value = mappings[feature].get(str(value), -1)
                 processed_data[feature] = [mapped_value]
             else:
-                # Convert number to float
-                processed_data[feature] = [float(value)]
+                # Convert number to int
+                processed_data[feature] = [int(value)]
 
         # Create the DataFrame for the model
         input_df = pd.DataFrame.from_dict(processed_data)
